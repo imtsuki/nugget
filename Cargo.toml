@@ -15,7 +15,11 @@ anyhow = "1.0"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 raw-window-handle = "0.4.3"
+tobj = "3.2.2"
+gltf = "1.0.0"
 
 # executable dependencies
 pollster = "0.2.5"
 winit = "0.26.1"
+
+
