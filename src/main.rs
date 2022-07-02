@@ -1,17 +1,29 @@
 use anyhow::{Error, Result};
+use clap::Parser;
 use nugget::Renderer;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
 };
 
+/// Who hates nuggets?
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+    /// Path of the model to load
+    #[clap(value_parser)]
+    path: String,
+}
+
 pub fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
+    let args = Args::parse();
     let event_loop = EventLoop::new();
     let window = winit::window::Window::new(&event_loop)?;
     pollster::block_on(async {
         let renderer = Renderer::new(&window).await?;
         renderer.size_changed(window.inner_size().width, window.inner_size().height);
+        renderer.load_model(args.path)?;
 
         event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Wait;

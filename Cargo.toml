@@ -21,5 +21,6 @@ gltf = "1.0.0"
 # executable dependencies
 pollster = "0.2.5"
 winit = "0.26.1"
+clap = { version = "3.2.8", features = ["derive"] }
 
 

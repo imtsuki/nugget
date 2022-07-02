@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, ffi, fmt, path::Path};
 
 use anyhow::{anyhow, Result};
 
@@ -121,5 +121,35 @@ impl Renderer {
 
         self.queue.submit(Some(encoder.finish()));
         frame.present();
+    }
+
+    pub fn load_model<P: AsRef<Path> + fmt::Debug>(&self, path: P) -> Result<()> {
+        use std::{fs, io};
+
+        match path.as_ref().extension().and_then(ffi::OsStr::to_str) {
+            Some("obj") => {
+                let options = tobj::LoadOptions::default();
+                let (models, materials) = tobj::load_obj(path, &options)?;
+                let materials = materials?;
+                for model in models {
+                    dbg!(model.name);
+                    dbg!(model.mesh.material_id);
+                }
+                for material in materials {
+                    dbg!(material.name);
+                }
+            }
+            Some("gltf") => {
+                let file = fs::File::open(path)?;
+                let reader = io::BufReader::new(file);
+                let model = gltf::Gltf::from_reader(reader)?;
+                dbg!(model);
+            }
+            _ => {
+                return Err(anyhow!("Unsupported file extension"));
+            }
+        }
+
+        Ok(())
     }
 }
