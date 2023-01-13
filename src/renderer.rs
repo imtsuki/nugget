@@ -1,24 +1,71 @@
-use std::{borrow::Cow, ffi, fmt, path::Path};
+use std::{ffi, fmt, mem, path::Path};
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
+
+use tracing::info;
+
+use crate::model::Model;
 
 pub struct Renderer {
+    pub adapter: wgpu::Adapter,
     pub surface: wgpu::Surface,
+    pub config: wgpu::SurfaceConfiguration,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub shader: wgpu::ShaderModule,
-    pub swapchain_format: wgpu::TextureFormat,
-    pub pipeline_layout: wgpu::PipelineLayout,
     pub render_pipeline: wgpu::RenderPipeline,
+    pub model: Model,
+}
+
+/// TODO: remove this once `wgpu 0.15.0` is released
+trait SurfaceExt {
+    fn get_default_config(
+        &self,
+        adapter: &wgpu::Adapter,
+        width: u32,
+        height: u32,
+    ) -> Option<wgpu::SurfaceConfiguration>;
+}
+
+impl SurfaceExt for wgpu::Surface {
+    fn get_default_config(
+        &self,
+        adapter: &wgpu::Adapter,
+        width: u32,
+        height: u32,
+    ) -> Option<wgpu::SurfaceConfiguration> {
+        let format = *self.get_supported_formats(adapter).get(0)?;
+        let present_mode = *self.get_supported_present_modes(adapter).get(0)?;
+
+        let config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format,
+            width,
+            height,
+            present_mode,
+            alpha_mode: wgpu::CompositeAlphaMode::Auto,
+        };
+
+        Some(config)
+    }
+}
+
+#[repr(C)]
+struct VertexIn {
+    position: [f32; 4],
 }
 
 impl Renderer {
-    pub async fn new<W>(window: &W) -> Result<Renderer>
+    pub async fn new<W>(window: &W, width: u32, height: u32) -> Result<Renderer>
     where
-        W: raw_window_handle::HasRawWindowHandle,
+        W: raw_window_handle::HasRawWindowHandle + raw_window_handle::HasRawDisplayHandle,
     {
+        // Context for all other wgpu objects. Instance of wgpu.
         let instance = wgpu::Instance::new(wgpu::Backends::all());
+        // Surface: handle to a presentable surface.
         let surface = unsafe { instance.create_surface(&window) };
+
+        // An adapter identifies an implementation of WebGPU on the system.
         let adapter_options = wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::default(),
             force_fallback_adapter: false,
@@ -27,7 +74,15 @@ impl Renderer {
         let adapter = instance
             .request_adapter(&adapter_options)
             .await
-            .ok_or(anyhow!("Failed to find an appropriate adapter"))?;
+            .ok_or(anyhow!("Failed to find an appropriate GPU adapter"))?;
+
+        info!("Supported features: {:?}", adapter.features());
+
+        let config = surface
+            .get_default_config(&adapter, width, height)
+            .ok_or(anyhow!("Failed to get default surface configuration"))?;
+
+        // A device is the logical instantiation of an adapter.
         let device_descriptor = wgpu::DeviceDescriptor {
             label: None,
             features: wgpu::Features::empty(),
@@ -36,10 +91,9 @@ impl Renderer {
         };
         let (device, queue) = adapter.request_device(&device_descriptor, None).await?;
 
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader.wgsl"))),
-        });
+        let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
+
+        let model = Model::new(&device);
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
@@ -47,8 +101,11 @@ impl Renderer {
             push_constant_ranges: &[],
         });
 
-        // The first format in the vector is preferred
-        let swapchain_format = surface.get_supported_formats(&adapter)[0];
+        let vertex_buffer_layouts = [wgpu::VertexBufferLayout {
+            array_stride: mem::size_of::<VertexIn>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &wgpu::vertex_attr_array![0 => Float32x4],
+        }];
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
@@ -56,12 +113,12 @@ impl Renderer {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vertex_main",
-                buffers: &[],
+                buffers: &vertex_buffer_layouts,
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
                 entry_point: "fragment_main",
-                targets: &[Some(swapchain_format.into())],
+                targets: &[Some(config.format.into())],
             }),
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
@@ -70,25 +127,21 @@ impl Renderer {
         });
 
         Ok(Renderer {
+            adapter,
             surface,
+            config,
             device,
             queue,
             shader,
-            swapchain_format,
-            pipeline_layout,
             render_pipeline,
+            model,
         })
     }
 
-    pub fn size_changed(&self, width: u32, height: u32) {
-        let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: self.swapchain_format,
-            width,
-            height,
-            present_mode: wgpu::PresentMode::Mailbox,
-        };
-        self.surface.configure(&self.device, &config);
+    pub fn size_changed(&mut self, width: u32, height: u32) {
+        self.config.width = width;
+        self.config.height = height;
+        self.surface.configure(&self.device, &self.config);
     }
 
     pub fn render(&self) {
@@ -103,7 +156,7 @@ impl Renderer {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
         {
-            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
@@ -115,8 +168,11 @@ impl Renderer {
                 })],
                 depth_stencil_attachment: None,
             });
-            rpass.set_pipeline(&self.render_pipeline);
-            rpass.draw(0..3, 0..1);
+            render_pass.set_pipeline(&self.render_pipeline);
+
+            self.model.render(&mut render_pass);
+
+            render_pass.set_pipeline(&self.render_pipeline);
         }
 
         self.queue.submit(Some(encoder.finish()));
@@ -146,7 +202,7 @@ impl Renderer {
                 dbg!(model);
             }
             _ => {
-                return Err(anyhow!("Unsupported file extension"));
+                bail!("Unsupported file extension");
             }
         }
 

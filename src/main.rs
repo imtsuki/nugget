@@ -17,13 +17,14 @@ struct Args {
 
 pub fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
-    let args = Args::parse();
+    // let args = Args::parse();
     let event_loop = EventLoop::new();
     let window = winit::window::Window::new(&event_loop)?;
     pollster::block_on(async {
-        let renderer = Renderer::new(&window).await?;
-        renderer.size_changed(window.inner_size().width, window.inner_size().height);
-        renderer.load_model(args.path)?;
+        let size = window.inner_size();
+        let mut renderer = Renderer::new(&window, size.width, size.height).await?;
+
+        // renderer.load_model(args.path)?;
 
         event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Wait;
@@ -47,6 +48,10 @@ pub fn main() -> Result<()> {
         });
         #[allow(unreachable_code)]
         Ok::<(), Error>(())
+    })
+    .map_err(|error| {
+        tracing::error!(?error);
+        error
     })?;
     Ok(())
 }
