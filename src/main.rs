@@ -17,14 +17,14 @@ struct Args {
 
 pub fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
-    // let args = Args::parse();
+    let args = Args::parse();
     let event_loop = EventLoop::new();
     let window = winit::window::Window::new(&event_loop)?;
     pollster::block_on(async {
         let size = window.inner_size();
         let mut renderer = Renderer::new(&window, size.width, size.height).await?;
 
-        // renderer.load_model(args.path)?;
+        let _model = nugget::asset::load_gltf(args.path)?;
 
         event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Wait;

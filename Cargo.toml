@@ -26,6 +26,6 @@ clap = { version = "4", features = ["derive"] }
 
 [dependencies.gltf]
 version = "1.0"
-features = ["extras", "names"]
+features = ["extras", "names", "utils"]
 
 

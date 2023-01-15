@@ -4,7 +4,9 @@ use anyhow::{anyhow, bail, Result};
 
 use tracing::info;
 
+use crate::ext::{DeviceExt, SurfaceExt};
 use crate::model::Model;
+use crate::shared::VertexIn;
 
 pub struct Renderer {
     pub adapter: wgpu::Adapter,
@@ -13,46 +15,9 @@ pub struct Renderer {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub shader: wgpu::ShaderModule,
-    pub render_pipeline: wgpu::RenderPipeline,
+    pub pipeline: wgpu::RenderPipeline,
+    pub depth_texture: wgpu::TextureView,
     pub model: Model,
-}
-
-/// TODO: remove this once `wgpu 0.15.0` is released
-trait SurfaceExt {
-    fn get_default_config(
-        &self,
-        adapter: &wgpu::Adapter,
-        width: u32,
-        height: u32,
-    ) -> Option<wgpu::SurfaceConfiguration>;
-}
-
-impl SurfaceExt for wgpu::Surface {
-    fn get_default_config(
-        &self,
-        adapter: &wgpu::Adapter,
-        width: u32,
-        height: u32,
-    ) -> Option<wgpu::SurfaceConfiguration> {
-        let format = *self.get_supported_formats(adapter).get(0)?;
-        let present_mode = *self.get_supported_present_modes(adapter).get(0)?;
-
-        let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format,
-            width,
-            height,
-            present_mode,
-            alpha_mode: wgpu::CompositeAlphaMode::Auto,
-        };
-
-        Some(config)
-    }
-}
-
-#[repr(C)]
-struct VertexIn {
-    position: [f32; 4],
 }
 
 impl Renderer {
@@ -93,7 +58,7 @@ impl Renderer {
 
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
-        let model = Model::new(&device);
+        let model = Model::rect(&device);
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
@@ -107,7 +72,7 @@ impl Renderer {
             attributes: &wgpu::vertex_attr_array![0 => Float32x4],
         }];
 
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
@@ -121,10 +86,18 @@ impl Renderer {
                 targets: &[Some(config.format.into())],
             }),
             primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
         });
+
+        let depth_texture = device.create_depth_texture(&config);
 
         Ok(Renderer {
             adapter,
@@ -133,14 +106,16 @@ impl Renderer {
             device,
             queue,
             shader,
-            render_pipeline,
+            pipeline,
             model,
+            depth_texture,
         })
     }
 
     pub fn size_changed(&mut self, width: u32, height: u32) {
         self.config.width = width;
         self.config.height = height;
+        self.depth_texture = self.device.create_depth_texture(&self.config);
         self.surface.configure(&self.device, &self.config);
     }
 
@@ -166,13 +141,18 @@ impl Renderer {
                         store: true,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: true,
+                    }),
+                    stencil_ops: None,
+                }),
             });
-            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_pipeline(&self.pipeline);
 
             self.model.render(&mut render_pass);
-
-            render_pass.set_pipeline(&self.render_pipeline);
         }
 
         self.queue.submit(Some(encoder.finish()));
@@ -180,8 +160,6 @@ impl Renderer {
     }
 
     pub fn load_model<P: AsRef<Path> + fmt::Debug>(&self, path: P) -> Result<()> {
-        use std::{fs, io};
-
         match path.as_ref().extension().and_then(ffi::OsStr::to_str) {
             Some("obj") => {
                 let options = tobj::LoadOptions::default();
@@ -194,12 +172,6 @@ impl Renderer {
                 for material in materials {
                     dbg!(material.name);
                 }
-            }
-            Some("gltf") => {
-                let file = fs::File::open(path)?;
-                let reader = io::BufReader::new(file);
-                let model = gltf::Gltf::from_reader(reader)?;
-                dbg!(model);
             }
             _ => {
                 bail!("Unsupported file extension");

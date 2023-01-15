@@ -7,7 +7,11 @@ pub struct Model {
 }
 
 impl Model {
-    pub fn new(device: &wgpu::Device) -> Model {
+    pub fn load() -> Model {
+        todo!()
+    }
+
+    pub fn rect(device: &wgpu::Device) -> Model {
         #[rustfmt::skip]
         let vertices: Vec<f32> = vec![
             -1.,  1., 0., 1.,
@@ -16,7 +20,7 @@ impl Model {
              1., -1., 0., 1.,
         ];
 
-        let indices: Vec<u16> = vec![0, 3, 2, 0, 1, 3];
+        let indices: Vec<u32> = vec![0, 3, 2, 0, 1, 3];
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
@@ -39,7 +43,7 @@ impl Model {
 
     pub fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         render_pass.draw_indexed(0..self.index_count, 0, 0..1);
     }
 }
