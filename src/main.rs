@@ -1,6 +1,6 @@
 use anyhow::{Error, Result};
 use clap::Parser;
-use nugget::Renderer;
+use nugget::{Model, Renderer};
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -22,9 +22,10 @@ pub fn main() -> Result<()> {
     let window = winit::window::Window::new(&event_loop)?;
     pollster::block_on(async {
         let size = window.inner_size();
-        let mut renderer = Renderer::new(&window, size.width, size.height).await?;
 
-        let _model = nugget::asset::load_gltf(args.path)?;
+        let model = Model::load_gltf(args.path)?;
+
+        let mut renderer = Renderer::new(&window, size.width, size.height, model).await?;
 
         event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Wait;

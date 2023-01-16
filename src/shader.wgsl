@@ -1,5 +1,5 @@
 struct VertexIn {
-    @location(0) position: vec4<f32>,
+    @location(0) position: vec3<f32>,
 }
 
 struct FragmentIn {
@@ -8,8 +8,8 @@ struct FragmentIn {
 
 @vertex
 fn vertex_main(vertex_in: VertexIn) -> FragmentIn {
-    let position = vertex_in.position;
-    return FragmentIn(position * vec4<f32>(0.5, 0.5, 0.5, 1.0));
+    let position = vec4<f32>(vertex_in.position, 1.0);
+    return FragmentIn(position);
 }
 
 @fragment

@@ -1,6 +1,6 @@
 #[repr(C)]
 pub struct VertexIn {
-    position: [f32; 4],
+    position: [f32; 3],
 }
 
 #[repr(C)]
