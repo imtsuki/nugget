@@ -7,6 +7,7 @@ use tracing::info;
 use crate::ext::{DeviceExt, SurfaceExt};
 use crate::model::Model;
 use crate::texture::Texture;
+use crate::uniform::Uniforms;
 use crate::vertex::VertexIn;
 
 pub struct Renderer {
@@ -18,6 +19,7 @@ pub struct Renderer {
     pub shader: wgpu::ShaderModule,
     pub pipeline: wgpu::RenderPipeline,
     pub depth_texture: wgpu::TextureView,
+    pub uniforms: Uniforms,
     pub model: Model,
 }
 
@@ -69,14 +71,19 @@ impl Renderer {
 
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
+        let uniforms_bind_group_layout =
+            device.create_bind_group_layout(&Uniforms::BIND_GROUP_LAYOUT_DESCRIPTOR);
+
         let texture_bind_group_layout =
             device.create_bind_group_layout(&Texture::BIND_GROUP_LAYOUT_DESCRIPTOR);
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[&texture_bind_group_layout],
+            bind_group_layouts: &[&uniforms_bind_group_layout, &texture_bind_group_layout],
             push_constant_ranges: &[],
         });
+
+        let uniforms = Uniforms::new(&device, &uniforms_bind_group_layout, width, height);
 
         let vertex_buffer_layouts = VertexIn::BUFFER_LAYOUTS;
 
@@ -127,6 +134,7 @@ impl Renderer {
             pipeline,
             model,
             depth_texture,
+            uniforms,
         })
     }
 
@@ -134,6 +142,7 @@ impl Renderer {
         self.config.width = width;
         self.config.height = height;
         self.depth_texture = self.device.create_depth_texture(&self.config);
+        self.uniforms.resize(width, height, &self.queue);
         self.surface.configure(&self.device, &self.config);
     }
 
@@ -155,7 +164,12 @@ impl Renderer {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.3,
+                            g: 0.3,
+                            b: 0.3,
+                            a: 1.0,
+                        }),
                         store: true,
                     },
                 })],
@@ -169,6 +183,8 @@ impl Renderer {
                 }),
             });
             render_pass.set_pipeline(&self.pipeline);
+
+            render_pass.set_bind_group(0, &self.uniforms.bind_group, &[]);
 
             self.model.render(&mut render_pass);
         }

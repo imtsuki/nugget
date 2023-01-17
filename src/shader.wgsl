@@ -10,18 +10,30 @@ struct FragmentIn {
     @location(1) normal: vec3<f32>,
 }
 
+struct Uniforms {
+    model_matrix: mat4x4<f32>,
+    view_matrix: mat4x4<f32>,
+    projection_matrix: mat4x4<f32>,
+}
+
+@group(0) @binding(0)
+var<uniform> uniforms: Uniforms;
+
 @vertex
 fn vertex_main(vertex_in: VertexIn) -> FragmentIn {
-    let position = vec4<f32>(vertex_in.position, 1.0);
+    let position = uniforms.projection_matrix
+        * uniforms.view_matrix
+        * uniforms.model_matrix
+        * vec4<f32>(vertex_in.position, 1.0);
     let normal = vec4<f32>(vertex_in.normal, 0.0);
     return FragmentIn(position, vertex_in.tex_coord, vertex_in.normal);
 }
 
-@group(0) @binding(0)
+@group(1) @binding(0)
 var<uniform> base_color_factor: vec4<f32>;
-@group(0) @binding(1)
+@group(1) @binding(1)
 var base_color_texture: texture_2d<f32>;
-@group(0) @binding(2)
+@group(1) @binding(2)
 var base_color_sampler: sampler;
 
 @fragment

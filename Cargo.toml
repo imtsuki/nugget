@@ -17,6 +17,7 @@ tracing-subscriber = "0.3"
 raw-window-handle = "0.5.0"
 tobj = "3.2.2"
 bytemuck = "1.12.3"
+glam = { version = "0.22.0", features = ["bytemuck"] }
 
 # executable dependencies
 pollster = "0.2.5"

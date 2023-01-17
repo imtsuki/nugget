@@ -257,7 +257,7 @@ impl Model {
                     wgpu::IndexFormat::Uint32,
                 );
                 let material = &self.materials[primitive.material_index];
-                render_pass.set_bind_group(0, material.bind_group.as_ref().unwrap(), &[]);
+                render_pass.set_bind_group(1, material.bind_group.as_ref().unwrap(), &[]);
                 render_pass.draw_indexed(0..primitive.indices.0.len() as u32, 0, 0..1);
             }
         }
