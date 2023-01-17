@@ -23,9 +23,13 @@ pollster = "0.2.5"
 winit = "0.27.5"
 clap = { version = "4", features = ["derive"] }
 
-
 [dependencies.gltf]
 version = "1.0"
 features = ["extras", "names", "utils"]
+
+[dependencies.image]
+version = "0.24.5"
+features = ["png", "jpeg"]
+default-features = false
 
 

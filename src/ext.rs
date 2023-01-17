@@ -16,6 +16,11 @@ impl SurfaceExt for wgpu::Surface {
         height: u32,
     ) -> Option<wgpu::SurfaceConfiguration> {
         let format = *self.get_supported_formats(adapter).get(0)?;
+        tracing::info!(
+            "Supported formats: {:?}",
+            self.get_supported_formats(adapter)
+        );
+        tracing::info!("Surface format: {:?}", format);
         let present_mode = *self.get_supported_present_modes(adapter).get(0)?;
 
         let config = wgpu::SurfaceConfiguration {
@@ -52,5 +57,26 @@ impl DeviceExt for wgpu::Device {
         });
 
         depth_texture.create_view(&wgpu::TextureViewDescriptor::default())
+    }
+}
+
+pub trait RgbaImageExt {
+    fn from_gltf_image(image: &gltf::image::Data) -> Option<image::RgbaImage>;
+}
+
+impl RgbaImageExt for image::RgbaImage {
+    fn from_gltf_image(image: &gltf::image::Data) -> Option<image::RgbaImage> {
+        use gltf::image::Format;
+        use image::buffer::ConvertBuffer;
+        Some(match image.format {
+            Format::R8G8B8A8 => {
+                image::RgbaImage::from_raw(image.width, image.height, image.pixels.clone())?
+            }
+            Format::R8G8B8 => {
+                image::RgbImage::from_raw(image.width, image.height, image.pixels.clone())?
+                    .convert()
+            }
+            _ => unimplemented!("Image format not yet implemented: {:?}", image.format),
+        })
     }
 }

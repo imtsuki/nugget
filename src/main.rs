@@ -10,9 +10,11 @@ use winit::{
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    /// Path of the model to load
-    #[clap(value_parser)]
+    /// Path to the glTF model to load
     path: String,
+    /// Whether to render in wireframe mode
+    #[arg(short, long)]
+    line: bool,
 }
 
 pub fn main() -> Result<()> {
@@ -25,7 +27,8 @@ pub fn main() -> Result<()> {
 
         let model = Model::load_gltf(args.path)?;
 
-        let mut renderer = Renderer::new(&window, size.width, size.height, model).await?;
+        let mut renderer =
+            Renderer::new(&window, size.width, size.height, model, args.line).await?;
 
         event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Wait;

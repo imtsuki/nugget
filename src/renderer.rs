@@ -1,4 +1,4 @@
-use std::{ffi, fmt, mem, path::Path};
+use std::{ffi, fmt, path::Path};
 
 use anyhow::{anyhow, bail, Result};
 
@@ -6,7 +6,8 @@ use tracing::info;
 
 use crate::ext::{DeviceExt, SurfaceExt};
 use crate::model::Model;
-use crate::shared::VertexIn;
+use crate::texture::Texture;
+use crate::vertex::VertexIn;
 
 pub struct Renderer {
     pub adapter: wgpu::Adapter,
@@ -21,7 +22,13 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub async fn new<W>(window: &W, width: u32, height: u32, mut model: Model) -> Result<Renderer>
+    pub async fn new<W>(
+        window: &W,
+        width: u32,
+        height: u32,
+        mut model: Model,
+        line: bool,
+    ) -> Result<Renderer>
     where
         W: raw_window_handle::HasRawWindowHandle + raw_window_handle::HasRawDisplayHandle,
     {
@@ -50,7 +57,11 @@ impl Renderer {
         // A device is the logical instantiation of an adapter.
         let device_descriptor = wgpu::DeviceDescriptor {
             label: None,
-            features: wgpu::Features::POLYGON_MODE_LINE,
+            features: if line {
+                wgpu::Features::POLYGON_MODE_LINE
+            } else {
+                wgpu::Features::empty()
+            },
             // Make sure we use the texture resolution limits from the adapter, so we can support images the size of the swapchain.
             limits: wgpu::Limits::default().using_resolution(adapter.limits()),
         };
@@ -58,17 +69,16 @@ impl Renderer {
 
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
+        let texture_bind_group_layout =
+            device.create_bind_group_layout(&Texture::BIND_GROUP_LAYOUT_DESCRIPTOR);
+
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[],
+            bind_group_layouts: &[&texture_bind_group_layout],
             push_constant_ranges: &[],
         });
 
-        let vertex_buffer_layouts = [wgpu::VertexBufferLayout {
-            array_stride: mem::size_of::<VertexIn>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &wgpu::vertex_attr_array![0 => Float32x3],
-        }];
+        let vertex_buffer_layouts = VertexIn::BUFFER_LAYOUTS;
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
@@ -84,7 +94,11 @@ impl Renderer {
                 targets: &[Some(config.format.into())],
             }),
             primitive: wgpu::PrimitiveState {
-                polygon_mode: wgpu::PolygonMode::Line,
+                polygon_mode: if line {
+                    wgpu::PolygonMode::Line
+                } else {
+                    wgpu::PolygonMode::Fill
+                },
                 ..Default::default()
             },
             depth_stencil: Some(wgpu::DepthStencilState {
@@ -99,6 +113,7 @@ impl Renderer {
         });
 
         model.allocate_buffers(&device);
+        model.load_textures(&device, &queue, &texture_bind_group_layout);
 
         let depth_texture = device.create_depth_texture(&config);
 

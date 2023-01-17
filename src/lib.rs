@@ -1,6 +1,7 @@
 pub mod model;
 pub mod renderer;
-pub mod shared;
+pub mod texture;
+pub mod vertex;
 
 mod ext;
 
