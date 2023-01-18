@@ -1,5 +1,8 @@
+pub mod camera;
+pub mod material;
 pub mod model;
 pub mod renderer;
+pub mod scene;
 pub mod texture;
 pub mod uniform;
 pub mod vertex;

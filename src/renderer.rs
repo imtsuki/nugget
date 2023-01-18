@@ -5,9 +5,9 @@ use anyhow::{anyhow, bail, Result};
 use tracing::info;
 
 use crate::ext::{DeviceExt, SurfaceExt};
+use crate::material::Material;
 use crate::model::Model;
-use crate::texture::Texture;
-use crate::uniform::Uniforms;
+use crate::scene::Scene;
 use crate::vertex::VertexIn;
 
 pub struct Renderer {
@@ -19,8 +19,7 @@ pub struct Renderer {
     pub shader: wgpu::ShaderModule,
     pub pipeline: wgpu::RenderPipeline,
     pub depth_texture: wgpu::TextureView,
-    pub uniforms: Uniforms,
-    pub model: Model,
+    pub scene: Scene,
 }
 
 impl Renderer {
@@ -71,19 +70,24 @@ impl Renderer {
 
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
-        let uniforms_bind_group_layout =
-            device.create_bind_group_layout(&Uniforms::BIND_GROUP_LAYOUT_DESCRIPTOR);
+        let scene_bind_group_layout =
+            device.create_bind_group_layout(&Scene::BIND_GROUP_LAYOUT_DESCRIPTOR);
 
-        let texture_bind_group_layout =
-            device.create_bind_group_layout(&Texture::BIND_GROUP_LAYOUT_DESCRIPTOR);
+        let model_bind_group_layout =
+            device.create_bind_group_layout(&Model::BIND_GROUP_LAYOUT_DESCRIPTOR);
+
+        let material_bind_group_layout =
+            device.create_bind_group_layout(&Material::BIND_GROUP_LAYOUT_DESCRIPTOR);
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[&uniforms_bind_group_layout, &texture_bind_group_layout],
+            bind_group_layouts: &[
+                &scene_bind_group_layout,
+                &model_bind_group_layout,
+                &material_bind_group_layout,
+            ],
             push_constant_ranges: &[],
         });
-
-        let uniforms = Uniforms::new(&device, &uniforms_bind_group_layout, width, height);
 
         let vertex_buffer_layouts = VertexIn::BUFFER_LAYOUTS;
 
@@ -119,8 +123,17 @@ impl Renderer {
             multiview: None,
         });
 
-        model.allocate_buffers(&device);
-        model.load_textures(&device, &queue, &texture_bind_group_layout);
+        model.allocate_buffers(&device, &model_bind_group_layout);
+        model.load_materials(&device, &queue, &material_bind_group_layout);
+
+        let mut scene = Scene::new(
+            config.width,
+            config.height,
+            &device,
+            &scene_bind_group_layout,
+        );
+
+        scene.add_model(model);
 
         let depth_texture = device.create_depth_texture(&config);
 
@@ -132,9 +145,8 @@ impl Renderer {
             queue,
             shader,
             pipeline,
-            model,
             depth_texture,
-            uniforms,
+            scene,
         })
     }
 
@@ -142,8 +154,12 @@ impl Renderer {
         self.config.width = width;
         self.config.height = height;
         self.depth_texture = self.device.create_depth_texture(&self.config);
-        self.uniforms.resize(width, height, &self.queue);
+        self.scene.resize_viewport(width, height, &self.queue);
         self.surface.configure(&self.device, &self.config);
+    }
+
+    pub fn rotate_camera(&mut self, x: f32, y: f32) {
+        self.scene.rotate_camera(glam::Vec2::new(x, y), &self.queue);
     }
 
     pub fn render(&self) {
@@ -184,9 +200,7 @@ impl Renderer {
             });
             render_pass.set_pipeline(&self.pipeline);
 
-            render_pass.set_bind_group(0, &self.uniforms.bind_group, &[]);
-
-            self.model.render(&mut render_pass);
+            self.scene.render(&mut render_pass);
         }
 
         self.queue.submit(Some(encoder.finish()));

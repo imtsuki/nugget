@@ -1,6 +1,10 @@
+use crate::ext::RgbaImageExt;
+use crate::material::Material;
+use crate::texture::Texture;
+use crate::uniform::{ModelBinding, Uniforms};
 use crate::vertex::VertexAttribute;
 use crate::Result;
-use crate::{ext::RgbaImageExt, texture::Texture};
+
 use anyhow::anyhow;
 use std::{fmt, path};
 use tracing::{debug, info};
@@ -9,6 +13,7 @@ use wgpu::util::DeviceExt;
 pub struct Model {
     pub meshes: Vec<Mesh>,
     pub materials: Vec<Material>,
+    pub uniforms: Option<Uniforms<ModelBinding>>,
 }
 
 pub struct Mesh {
@@ -24,13 +29,24 @@ pub struct Primitive {
     pub material_index: usize,
 }
 
-pub struct Material {
-    pub name: Option<String>,
-    pub base_color_texture: Texture,
-    pub bind_group: Option<wgpu::BindGroup>,
-}
-
 impl Model {
+    pub const BIND_GROUP_INDEX: u32 = 1;
+
+    pub const BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> =
+        wgpu::BindGroupLayoutDescriptor {
+            label: Some("Model Uniforms Bind Group Layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        };
+
     pub fn load_gltf<P: AsRef<path::Path> + fmt::Debug>(path: P) -> Result<Model> {
         info!("Loading model from {:?}", path);
         let (gltf, buffers, images) = gltf::import(path)?;
@@ -124,7 +140,6 @@ impl Model {
 
                 Texture {
                     name: texture.name().map(str::to_owned),
-                    factor: (base_color_factor, None),
                     image: Some(image),
                     view: None,
                     sampler: None,
@@ -133,7 +148,6 @@ impl Model {
                 info!("Base color factor: {:?}", base_color_factor);
                 Texture {
                     name: None,
-                    factor: (base_color_factor, None),
                     image: None,
                     view: None,
                     sampler: None,
@@ -142,15 +156,22 @@ impl Model {
 
             materials.push(Material {
                 name: material.name().map(str::to_owned),
+                base_color_factor: (base_color_factor, None),
                 base_color_texture,
                 bind_group: None,
             });
         }
 
-        Ok(Model { meshes, materials })
+        Ok(Model {
+            meshes,
+            materials,
+            uniforms: None,
+        })
     }
 
-    pub fn allocate_buffers(&mut self, device: &wgpu::Device) {
+    pub fn allocate_buffers(&mut self, device: &wgpu::Device, layout: &wgpu::BindGroupLayout) {
+        self.uniforms = Some(Uniforms::new(ModelBinding::new(), device, layout));
+
         for mesh in &mut self.meshes {
             for (index, primitive) in mesh.primitives.iter_mut().enumerate() {
                 let debug_label = format!(
@@ -158,6 +179,7 @@ impl Model {
                     mesh.name.as_deref().unwrap_or("Unnamed Mesh"),
                     index
                 );
+
                 primitive.positions.1 = Some(device.create_buffer_init(
                     &wgpu::util::BufferInitDescriptor {
                         label: Some(&format!("Position Buffer {}", debug_label)),
@@ -193,53 +215,27 @@ impl Model {
         }
     }
 
-    pub fn load_textures(
+    pub fn load_materials(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         bind_group_layout: &wgpu::BindGroupLayout,
     ) {
         for material in &mut self.materials {
-            material.base_color_texture.load(device, queue);
-
-            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Material Bind Group"),
-                layout: bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::Buffer(
-                            material
-                                .base_color_texture
-                                .factor
-                                .1
-                                .as_ref()
-                                .unwrap()
-                                .as_entire_buffer_binding(),
-                        ),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::TextureView(
-                            material.base_color_texture.view.as_ref().unwrap(),
-                        ),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: wgpu::BindingResource::Sampler(
-                            material.base_color_texture.sampler.as_ref().unwrap(),
-                        ),
-                    },
-                ],
-            });
-
-            material.bind_group = Some(bind_group);
+            material.load(device, queue, bind_group_layout);
         }
     }
 
     pub fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
         for mesh in &self.meshes {
             for primitive in &mesh.primitives {
+                let material = &self.materials[primitive.material_index];
+                render_pass.set_bind_group(
+                    Material::BIND_GROUP_INDEX,
+                    material.bind_group.as_ref().unwrap(),
+                    &[],
+                );
+
                 render_pass.set_vertex_buffer(
                     VertexAttribute::Position.location(),
                     primitive.positions.1.as_ref().unwrap().slice(..),
@@ -252,12 +248,12 @@ impl Model {
                     VertexAttribute::Normal.location(),
                     primitive.normals.1.as_ref().unwrap().slice(..),
                 );
+
                 render_pass.set_index_buffer(
                     primitive.indices.1.as_ref().unwrap().slice(..),
                     wgpu::IndexFormat::Uint32,
                 );
-                let material = &self.materials[primitive.material_index];
-                render_pass.set_bind_group(1, material.bind_group.as_ref().unwrap(), &[]);
+
                 render_pass.draw_indexed(0..primitive.indices.0.len() as u32, 0, 0..1);
             }
         }

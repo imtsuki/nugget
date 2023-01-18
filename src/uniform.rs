@@ -1,35 +1,14 @@
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
 
-pub struct Uniforms {
-    pub data: UniformsData,
+pub struct Uniforms<T: bytemuck::NoUninit> {
+    pub data: T,
     pub buffer: wgpu::Buffer,
     pub bind_group: wgpu::BindGroup,
 }
 
-impl Uniforms {
-    pub const BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> =
-        wgpu::BindGroupLayoutDescriptor {
-            label: Some("Uniforms Bind Group Layout"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-        };
-
-    pub fn new(
-        device: &wgpu::Device,
-        layout: &wgpu::BindGroupLayout,
-        width: u32,
-        height: u32,
-    ) -> Self {
-        let data = UniformsData::new(width, height);
+impl<T: bytemuck::NoUninit> Uniforms<T> {
+    pub fn new(data: T, device: &wgpu::Device, layout: &wgpu::BindGroupLayout) -> Self {
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Uniforms Buffer"),
             contents: bytemuck::bytes_of(&data),
@@ -50,28 +29,33 @@ impl Uniforms {
         }
     }
 
-    pub fn update(&self, queue: &wgpu::Queue) {
-        queue.write_buffer(&self.buffer, 0, bytemuck::bytes_of(&self.data));
+    pub fn update(&mut self, data: T, queue: &wgpu::Queue) {
+        self.data = data;
+        self.write_buffer(queue);
     }
 
-    pub fn resize(&mut self, width: u32, height: u32, queue: &wgpu::Queue) {
-        self.data.resize(width, height);
-        self.update(queue);
+    pub fn write_buffer(&self, queue: &wgpu::Queue) {
+        queue.write_buffer(&self.buffer, 0, bytemuck::bytes_of(&self.data));
     }
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-pub struct UniformsData {
-    pub model_matrix: glam::Mat4,
+pub struct CameraBinding {
     pub view_matrix: glam::Mat4,
     pub projection_matrix: glam::Mat4,
 }
 
-impl UniformsData {
-    pub fn new(width: u32, height: u32) -> Self {
-        let translation_matrix = glam::Mat4::from_translation(glam::Vec3::new(0.0, -0.5, 2.0));
-        let rotation_matrix = glam::Mat4::from_rotation_y(2.5);
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct ModelBinding {
+    pub model_matrix: glam::Mat4,
+}
+
+impl ModelBinding {
+    pub fn new() -> Self {
+        let translation_matrix = glam::Mat4::from_translation(glam::Vec3::new(0.0, -0.5, 0.0));
+        let rotation_matrix = glam::Mat4::from_rotation_y(0.0);
         let scale_matrix = glam::Mat4::from_scale(glam::Vec3 {
             x: 1.5,
             y: 1.5,
@@ -79,22 +63,12 @@ impl UniformsData {
         });
 
         let model_matrix = translation_matrix * rotation_matrix * scale_matrix;
-        let view_matrix = glam::Mat4::from_translation(glam::Vec3::new(0.0, 0.0, 0.0)).inverse();
-        let projection_matrix =
-            glam::Mat4::perspective_lh(1.0, width as f32 / height as f32, 0.1, 100.0);
 
-        Self {
-            model_matrix,
-            view_matrix,
-            projection_matrix,
-        }
-    }
-
-    pub fn resize(&mut self, width: u32, height: u32) {
-        self.projection_matrix =
-            glam::Mat4::perspective_lh(1.0, width as f32 / height as f32, 0.1, 100.0);
+        Self { model_matrix }
     }
 }
 
-unsafe impl Pod for UniformsData {}
-unsafe impl Zeroable for UniformsData {}
+unsafe impl Pod for CameraBinding {}
+unsafe impl Zeroable for CameraBinding {}
+unsafe impl Pod for ModelBinding {}
+unsafe impl Zeroable for ModelBinding {}
