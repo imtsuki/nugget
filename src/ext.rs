@@ -61,20 +61,19 @@ impl DeviceExt for wgpu::Device {
 }
 
 pub trait RgbaImageExt {
-    fn from_gltf_image(image: &gltf::image::Data) -> Option<image::RgbaImage>;
+    fn from_gltf_image(image: gltf::image::Data) -> Option<image::RgbaImage>;
 }
 
 impl RgbaImageExt for image::RgbaImage {
-    fn from_gltf_image(image: &gltf::image::Data) -> Option<image::RgbaImage> {
+    fn from_gltf_image(image: gltf::image::Data) -> Option<image::RgbaImage> {
         use gltf::image::Format;
         use image::buffer::ConvertBuffer;
         Some(match image.format {
             Format::R8G8B8A8 => {
-                image::RgbaImage::from_raw(image.width, image.height, image.pixels.clone())?
+                image::RgbaImage::from_raw(image.width, image.height, image.pixels)?
             }
             Format::R8G8B8 => {
-                image::RgbImage::from_raw(image.width, image.height, image.pixels.clone())?
-                    .convert()
+                image::RgbImage::from_raw(image.width, image.height, image.pixels)?.convert()
             }
             _ => unimplemented!("Image format not yet implemented: {:?}", image.format),
         })

@@ -39,6 +39,10 @@ impl Scene {
         self.models.push(model);
     }
 
+    pub fn clear_models(&mut self) {
+        self.models.clear();
+    }
+
     pub fn resize_viewport(&mut self, width: u32, height: u32, queue: &wgpu::Queue) {
         self.camera.resize_viewport(width, height, queue);
     }
@@ -63,9 +67,4 @@ impl Scene {
             model.render(render_pass);
         }
     }
-}
-
-pub struct Camera {
-    pub view_matrix: glam::Mat4,
-    pub projection_matrix: glam::Mat4,
 }

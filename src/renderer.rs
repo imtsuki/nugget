@@ -1,6 +1,4 @@
-use std::{ffi, fmt, path::Path};
-
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, Result};
 
 use tracing::info;
 
@@ -9,6 +7,12 @@ use crate::material::Material;
 use crate::model::Model;
 use crate::scene::Scene;
 use crate::vertex::VertexIn;
+
+pub struct BindGroupLayouts {
+    pub scene: wgpu::BindGroupLayout,
+    pub model: wgpu::BindGroupLayout,
+    pub material: wgpu::BindGroupLayout,
+}
 
 pub struct Renderer {
     pub adapter: wgpu::Adapter,
@@ -19,22 +23,18 @@ pub struct Renderer {
     pub shader: wgpu::ShaderModule,
     pub pipeline: wgpu::RenderPipeline,
     pub depth_texture: wgpu::TextureView,
+    pub bind_group_layouts: BindGroupLayouts,
     pub scene: Scene,
 }
 
 impl Renderer {
-    pub async fn new<W>(
-        window: &W,
-        width: u32,
-        height: u32,
-        mut model: Model,
-        line: bool,
-    ) -> Result<Renderer>
+    pub async fn new<W>(window: &W, width: u32, height: u32, line: bool) -> Result<Renderer>
     where
         W: raw_window_handle::HasRawWindowHandle + raw_window_handle::HasRawDisplayHandle,
     {
         // Context for all other wgpu objects. Instance of wgpu.
         let instance = wgpu::Instance::new(wgpu::Backends::all());
+
         // Surface: handle to a presentable surface.
         let surface = unsafe { instance.create_surface(&window) };
 
@@ -67,6 +67,8 @@ impl Renderer {
             limits: wgpu::Limits::default().using_resolution(adapter.limits()),
         };
         let (device, queue) = adapter.request_device(&device_descriptor, None).await?;
+
+        surface.configure(&device, &config);
 
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
@@ -123,17 +125,12 @@ impl Renderer {
             multiview: None,
         });
 
-        model.allocate_buffers(&device, &model_bind_group_layout);
-        model.load_materials(&device, &queue, &material_bind_group_layout);
-
-        let mut scene = Scene::new(
+        let scene = Scene::new(
             config.width,
             config.height,
             &device,
             &scene_bind_group_layout,
         );
-
-        scene.add_model(model);
 
         let depth_texture = device.create_depth_texture(&config);
 
@@ -146,6 +143,11 @@ impl Renderer {
             shader,
             pipeline,
             depth_texture,
+            bind_group_layouts: BindGroupLayouts {
+                scene: scene_bind_group_layout,
+                model: model_bind_group_layout,
+                material: material_bind_group_layout,
+            },
             scene,
         })
     }
@@ -163,6 +165,7 @@ impl Renderer {
     }
 
     pub fn render(&self) {
+        tracing::debug!("Rendering new frame");
         let frame = self
             .surface
             .get_current_texture()
@@ -174,18 +177,29 @@ impl Renderer {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
         {
+            // use srgb color for native, and linear for web
+            let clear_color = if !cfg!(target_arch = "wasm32") {
+                wgpu::Color {
+                    r: 0.3,
+                    g: 0.3,
+                    b: 0.3,
+                    a: 1.0,
+                }
+            } else {
+                wgpu::Color {
+                    r: 0.3_f64.powf(1.0 / 2.2),
+                    g: 0.3_f64.powf(1.0 / 2.2),
+                    b: 0.3_f64.powf(1.0 / 2.2),
+                    a: 1.0,
+                }
+            };
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.3,
-                            g: 0.3,
-                            b: 0.3,
-                            a: 1.0,
-                        }),
+                        load: wgpu::LoadOp::Clear(clear_color),
                         store: true,
                     },
                 })],
@@ -207,25 +221,8 @@ impl Renderer {
         frame.present();
     }
 
-    pub fn load_model<P: AsRef<Path> + fmt::Debug>(&self, path: P) -> Result<()> {
-        match path.as_ref().extension().and_then(ffi::OsStr::to_str) {
-            Some("obj") => {
-                let options = tobj::LoadOptions::default();
-                let (models, materials) = tobj::load_obj(path, &options)?;
-                let materials = materials?;
-                for model in models {
-                    dbg!(model.name);
-                    dbg!(model.mesh.material_id);
-                }
-                for material in materials {
-                    dbg!(material.name);
-                }
-            }
-            _ => {
-                bail!("Unsupported file extension");
-            }
-        }
-
-        Ok(())
+    pub fn set_model(&mut self, model: Model) {
+        self.scene.clear_models();
+        self.scene.add_model(model);
     }
 }

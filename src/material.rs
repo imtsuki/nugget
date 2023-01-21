@@ -2,6 +2,7 @@ use wgpu::util::DeviceExt;
 
 use crate::texture::Texture;
 
+#[derive(Debug)]
 pub struct Material {
     pub name: Option<String>,
     pub base_color_factor: ([f32; 4], Option<wgpu::Buffer>),

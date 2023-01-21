@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Origin trial token for WebGPU, domain: localhost:8000 -->
+    <meta
+      http-equiv="origin-trial"
+      content="AoSdEiPBm19CVIF6skKpsmzQmAdKAC1oCV6NS2P12Xjtk1da77EZnrm8wSk1ymIsarjl7xHkMQChky3cDi7RdA0AAABJeyJvcmlnaW4iOiJodHRwOi8vbG9jYWxob3N0OjgwMDAiLCJmZWF0dXJlIjoiV2ViR1BVIiwiZXhwaXJ5IjoxNjkxNzExOTk5fQ=="
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Nugget</title>
+    <style>
+      canvas {
+        background-color: black;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container mx-auto py-4 min-h-screen">
+      <div
+        id="canvas-container"
+        class="mx-auto flex place-content-center"
+      ></div>
+      <div class="mt-4 mx-auto max-w-xl flex place-content-center space-x-2">
+        <input
+          id="model-url"
+          type="url"
+          class="grow px-3 py-2 bg-white border shadow-sm border-slate-300 placeholder-slate-400 focus:outline-none focus:border-sky-500 focus:ring-sky-500 block rounded-md focus:ring-1"
+        />
+        <button
+          id="load-model"
+          class="bg-sky-500 hover:bg-sky-700 px-5 py-2.5 text-sm leading-5 rounded-md font-semibold text-white"
+        >
+          Load Model from URL
+        </button>
+      </div>
+    </div>
+  </body>
+
+  <script type="module">
+    import init, { loadModel } from './pkg/nugget.js';
+
+    await init();
+
+    const loadModelButton = document.getElementById('load-model');
+    loadModelButton.addEventListener('click', () => {
+      const modelUrl = document.getElementById('model-url').value;
+      loadModel(modelUrl);
+    });
+  </script>
+</html>

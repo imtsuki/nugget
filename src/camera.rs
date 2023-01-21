@@ -93,7 +93,7 @@ impl ArcCamera {
         self.eye = eye + self.target;
 
         self.up = (rotation * self.up).normalize();
-        tracing::info!("eye: {:?}", self.eye);
+        tracing::debug!("eye: {:?}", self.eye);
 
         self.uniforms.update(self.uniforms_data(), queue);
     }

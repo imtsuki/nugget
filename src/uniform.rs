@@ -1,6 +1,8 @@
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
 
+#[derive(Debug)]
+
 pub struct Uniforms<T: bytemuck::NoUninit> {
     pub data: T,
     pub buffer: wgpu::Buffer,

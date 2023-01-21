@@ -1,20 +1,22 @@
-use crate::ext::RgbaImageExt;
 use crate::material::Material;
 use crate::texture::Texture;
 use crate::uniform::{ModelBinding, Uniforms};
 use crate::vertex::VertexAttribute;
-use crate::Result;
+use crate::{resources, Result};
 
 use anyhow::anyhow;
 use std::{fmt, path};
 use tracing::{debug, info};
 use wgpu::util::DeviceExt;
 
+#[derive(Debug)]
 pub struct Model {
     pub meshes: Vec<Mesh>,
     pub materials: Vec<Material>,
     pub uniforms: Option<Uniforms<ModelBinding>>,
 }
+
+#[derive(Debug)]
 
 pub struct Mesh {
     pub name: Option<String>,
@@ -27,6 +29,18 @@ pub struct Primitive {
     pub normals: (Vec<[f32; 3]>, Option<wgpu::Buffer>),
     pub indices: (Vec<u32>, Option<wgpu::Buffer>),
     pub material_index: usize,
+}
+
+impl fmt::Debug for Primitive {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Primitive")
+            .field("positions", &self.positions.0.len())
+            .field("tex_coords", &self.tex_coords.0.len())
+            .field("normals", &self.normals.0.len())
+            .field("indices", &self.indices.0.len())
+            .field("material_index", &self.material_index)
+            .finish()
+    }
 }
 
 impl Model {
@@ -47,9 +61,10 @@ impl Model {
             }],
         };
 
-    pub fn load_gltf<P: AsRef<path::Path> + fmt::Debug>(path: P) -> Result<Model> {
+    pub async fn load_gltf<P: AsRef<path::Path> + fmt::Debug>(path: P) -> Result<Model> {
         info!("Loading model from {:?}", path);
-        let (gltf, buffers, images) = gltf::import(path)?;
+
+        let (gltf, buffers, images) = resources::import_gltf(path).await?;
 
         for buffer in &buffers {
             debug!("Found buffer of size {}", buffer.len());
@@ -133,14 +148,11 @@ impl Model {
                 let image = &images[texture.source().index()];
 
                 info!("Base color texture: {:?}", texture.name());
-                info!("Base color texture format: {:?}", image.format);
-
-                let image = image::RgbaImage::from_gltf_image(image)
-                    .ok_or(anyhow!("Failed to convert gltf image to rgba"))?;
 
                 Texture {
                     name: texture.name().map(str::to_owned),
-                    image: Some(image),
+                    // FIXME: this is a hack, we should be able to use the image without cloning
+                    image: Some(image.clone()),
                     view: None,
                     sampler: None,
                 }
