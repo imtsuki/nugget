@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 
 use tracing::info;
 
-use crate::ext::{DeviceExt, SurfaceExt};
+use crate::ext::DeviceExt;
 use crate::material::Material;
 use crate::model::Model;
 use crate::scene::Scene;
@@ -33,10 +33,10 @@ impl Renderer {
         W: raw_window_handle::HasRawWindowHandle + raw_window_handle::HasRawDisplayHandle,
     {
         // Context for all other wgpu objects. Instance of wgpu.
-        let instance = wgpu::Instance::new(wgpu::Backends::all());
+        let instance = wgpu::Instance::default();
 
         // Surface: handle to a presentable surface.
-        let surface = unsafe { instance.create_surface(&window) };
+        let surface = unsafe { instance.create_surface(&window)? };
 
         // An adapter identifies an implementation of WebGPU on the system.
         let adapter_options = wgpu::RequestAdapterOptions {
@@ -177,29 +177,18 @@ impl Renderer {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
         {
-            // use srgb color for native, and linear for web
-            let clear_color = if !cfg!(target_arch = "wasm32") {
-                wgpu::Color {
-                    r: 0.3,
-                    g: 0.3,
-                    b: 0.3,
-                    a: 1.0,
-                }
-            } else {
-                wgpu::Color {
-                    r: 0.3_f64.powf(1.0 / 2.2),
-                    g: 0.3_f64.powf(1.0 / 2.2),
-                    b: 0.3_f64.powf(1.0 / 2.2),
-                    a: 1.0,
-                }
-            };
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(clear_color),
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.3,
+                            g: 0.3,
+                            b: 0.3,
+                            a: 1.0,
+                        }),
                         store: true,
                     },
                 })],

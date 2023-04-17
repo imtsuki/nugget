@@ -1,41 +1,3 @@
-/// TODO: remove this once `wgpu 0.15.0` is released
-pub trait SurfaceExt {
-    fn get_default_config(
-        &self,
-        adapter: &wgpu::Adapter,
-        width: u32,
-        height: u32,
-    ) -> Option<wgpu::SurfaceConfiguration>;
-}
-
-impl SurfaceExt for wgpu::Surface {
-    fn get_default_config(
-        &self,
-        adapter: &wgpu::Adapter,
-        width: u32,
-        height: u32,
-    ) -> Option<wgpu::SurfaceConfiguration> {
-        let format = *self.get_supported_formats(adapter).get(0)?;
-        tracing::info!(
-            "Supported formats: {:?}",
-            self.get_supported_formats(adapter)
-        );
-        tracing::info!("Surface format: {:?}", format);
-        let present_mode = *self.get_supported_present_modes(adapter).get(0)?;
-
-        let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format,
-            width,
-            height,
-            present_mode,
-            alpha_mode: wgpu::CompositeAlphaMode::Auto,
-        };
-
-        Some(config)
-    }
-}
-
 pub trait DeviceExt {
     fn create_depth_texture(&self, config: &wgpu::SurfaceConfiguration) -> wgpu::TextureView;
 }
@@ -54,6 +16,7 @@ impl DeviceExt for wgpu::Device {
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth32Float,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[wgpu::TextureFormat::Depth32Float],
         });
 
         depth_texture.create_view(&wgpu::TextureViewDescriptor::default())

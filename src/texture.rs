@@ -53,11 +53,12 @@ impl Texture {
                 wgpu::TextureFormat::Rgba8Unorm
             } else {
                 // while the image crate does not
-                wgpu::TextureFormat::Rgba8UnormSrgb
+                wgpu::TextureFormat::Rgba8Unorm
             },
             usage: wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[wgpu::TextureFormat::Rgba8Unorm],
         });
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -83,13 +84,20 @@ impl Texture {
 
         #[cfg(target_arch = "wasm32")]
         if let Some(image) = &self.image {
+            let image_copy_external_image = wgpu::ImageCopyExternalImage {
+                source: wgpu::ExternalImageSource::ImageBitmap(image.clone()),
+                origin: wgpu::Origin2d::ZERO,
+                flip_y: false,
+            };
             queue.copy_external_image_to_texture(
-                image,
-                wgpu::ImageCopyTexture {
+                &image_copy_external_image,
+                wgpu::ImageCopyTextureTagged {
                     texture: &texture,
                     mip_level: 0,
                     origin: wgpu::Origin3d::ZERO,
                     aspect: wgpu::TextureAspect::All,
+                    color_space: wgpu::PredefinedColorSpace::Srgb,
+                    premultiplied_alpha: false,
                 },
                 size,
             );

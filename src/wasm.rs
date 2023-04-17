@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::path;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -9,18 +8,10 @@ use futures::TryFutureExt;
 
 use anyhow::anyhow;
 
-use winit::{
-    dpi::LogicalSize,
-    event_loop::{EventLoopBuilder, EventLoopProxy},
-    platform::web::WindowExtWebSys,
-};
+use winit::{dpi::LogicalSize, event_loop::EventLoopBuilder, platform::web::WindowExtWebSys};
 
 use crate::app::AppEvent;
 use crate::Result;
-
-thread_local! {
-    static EVENT_LOOP_PROXY: RefCell<Option<EventLoopProxy<AppEvent>>> = RefCell::new(None);
-}
 
 #[wasm_bindgen(start)]
 pub fn wasm_start() -> Result<(), JsError> {
@@ -35,7 +26,7 @@ pub fn load_model(path: Option<String>) -> Result<(), JsError> {
 }
 
 pub fn send_event(event: AppEvent) -> Result<(), JsError> {
-    EVENT_LOOP_PROXY.with_borrow(|proxy| {
+    crate::app::EVENT_LOOP_PROXY.with_borrow(|proxy| {
         proxy
             .as_ref()
             .ok_or_else(|| {
@@ -63,7 +54,7 @@ fn wasm_main() -> Result<()> {
 
     let proxy = event_loop.create_proxy();
 
-    EVENT_LOOP_PROXY.set(Some(proxy));
+    crate::app::EVENT_LOOP_PROXY.set(Some(proxy));
 
     web_sys::window()
         .and_then(|window| window.document())

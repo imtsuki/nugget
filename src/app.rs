@@ -1,8 +1,10 @@
+use std::cell::RefCell;
+
 use crate::Result;
 
 use winit::{
     event::{Event, MouseScrollDelta, WindowEvent},
-    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
+    event_loop::{ControlFlow, EventLoop, EventLoopProxy, EventLoopWindowTarget},
 };
 
 use crate::Model;
@@ -12,6 +14,10 @@ use crate::Renderer;
 pub enum AppEvent {
     LoadModelRequest { path: String },
     LoadModelResponse(Result<Model>),
+}
+
+thread_local! {
+    pub static EVENT_LOOP_PROXY: RefCell<Option<EventLoopProxy<AppEvent>>> = RefCell::new(None);
 }
 
 pub async fn run(
