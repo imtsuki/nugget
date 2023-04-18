@@ -7,13 +7,13 @@ use winit::{
     event_loop::{ControlFlow, EventLoop, EventLoopProxy, EventLoopWindowTarget},
 };
 
-use crate::Model;
 use crate::Renderer;
+use crate::Resources;
 
 #[derive(Debug)]
 pub enum AppEvent {
-    LoadModelRequest { path: String },
-    LoadModelResponse(Result<Model>),
+    LoadResourcesRequest { path: String },
+    LoadResourcesResponse(Result<Resources>),
 }
 
 thread_local! {
@@ -66,32 +66,26 @@ pub async fn run(
             Event::UserEvent(event) => {
                 tracing::info!(?event, "received user event");
                 match event {
-                    AppEvent::LoadModelRequest { path } => {
+                    AppEvent::LoadResourcesRequest { path } => {
                         #[cfg(target_arch = "wasm32")]
                         wasm_bindgen_futures::spawn_local(async {
-                            let model = Model::load_gltf(path).await;
-                            let _ = crate::wasm::send_event(AppEvent::LoadModelResponse(model));
+                            let resources = Resources::load_gltf(path).await;
+                            let _ =
+                                crate::wasm::send_event(AppEvent::LoadResourcesResponse(resources));
                         });
                         // TODO: move this to a separate thread
                         #[cfg(not(target_arch = "wasm32"))]
                         pollster::block_on(async {
-                            let model = Model::load_gltf(path).await;
-                            let _ = proxy.send_event(AppEvent::LoadModelResponse(model));
+                            let resources = Resources::load_gltf(path).await;
+                            let _ = proxy.send_event(AppEvent::LoadResourcesResponse(resources));
                         });
                     }
-                    AppEvent::LoadModelResponse(Ok(mut model)) => {
-                        model
-                            .allocate_buffers(&renderer.device, &renderer.bind_group_layouts.model);
-                        model.load_materials(
-                            &renderer.device,
-                            &renderer.queue,
-                            &renderer.bind_group_layouts.material,
-                        );
-                        renderer.set_model(model);
+                    AppEvent::LoadResourcesResponse(Ok(resources)) => {
+                        renderer.load_resources(resources);
                         window.request_redraw();
                     }
-                    AppEvent::LoadModelResponse(Err(err)) => {
-                        tracing::error!(?err, "failed to load model");
+                    AppEvent::LoadResourcesResponse(Err(err)) => {
+                        tracing::error!(?err, "failed to load resources");
                     }
                 }
             }

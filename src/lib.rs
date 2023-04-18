@@ -20,3 +20,4 @@ pub mod wasm;
 pub use anyhow::Result;
 pub use model::Model;
 pub use renderer::Renderer;
+pub use resources::Resources;

@@ -1,46 +1,30 @@
 use crate::material::Material;
-use crate::texture::Texture;
+use crate::resources;
 use crate::uniform::{ModelBinding, Uniforms};
 use crate::vertex::VertexAttribute;
-use crate::{resources, Result};
 
-use anyhow::anyhow;
-use std::{fmt, path};
-use tracing::{debug, info};
 use wgpu::util::DeviceExt;
 
 #[derive(Debug)]
 pub struct Model {
     pub meshes: Vec<Mesh>,
     pub materials: Vec<Material>,
-    pub uniforms: Option<Uniforms<ModelBinding>>,
+    pub uniforms: Uniforms<ModelBinding>,
 }
 
 #[derive(Debug)]
-
 pub struct Mesh {
     pub name: Option<String>,
     pub primitives: Vec<Primitive>,
 }
 
+#[derive(Debug)]
 pub struct Primitive {
-    pub positions: (Vec<[f32; 3]>, Option<wgpu::Buffer>),
-    pub tex_coords: (Vec<[f32; 2]>, Option<wgpu::Buffer>),
-    pub normals: (Vec<[f32; 3]>, Option<wgpu::Buffer>),
-    pub indices: (Vec<u32>, Option<wgpu::Buffer>),
+    pub positions: wgpu::Buffer,
+    pub tex_coords: wgpu::Buffer,
+    pub normals: wgpu::Buffer,
+    pub indices: wgpu::Buffer,
     pub material_index: usize,
-}
-
-impl fmt::Debug for Primitive {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Primitive")
-            .field("positions", &self.positions.0.len())
-            .field("tex_coords", &self.tex_coords.0.len())
-            .field("normals", &self.normals.0.len())
-            .field("indices", &self.indices.0.len())
-            .field("material_index", &self.material_index)
-            .finish()
-    }
 }
 
 impl Model {
@@ -61,180 +45,18 @@ impl Model {
             }],
         };
 
-    pub async fn load_gltf<P: AsRef<path::Path> + fmt::Debug>(path: P) -> Result<Model> {
-        info!("Loading model from {:?}", path);
+    pub fn new(
+        meshes: Vec<Mesh>,
+        materials: Vec<Material>,
+        device: &wgpu::Device,
+        layout: &wgpu::BindGroupLayout,
+    ) -> Self {
+        let uniforms = Uniforms::new(ModelBinding::new(), device, layout);
 
-        let (gltf, buffers, images) = resources::import_gltf(path).await?;
-
-        for buffer in &buffers {
-            debug!("Found buffer of size {}", buffer.len());
-        }
-
-        let mut meshes = vec![];
-
-        for mesh in gltf.meshes() {
-            info!("Found mesh {:?}", mesh.name());
-
-            let mut primitives = vec![];
-
-            for primitive in mesh.primitives() {
-                let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
-
-                let positions = reader
-                    .read_positions()
-                    .map(|iter| iter.collect::<Vec<_>>())
-                    .ok_or_else(|| anyhow!("No positions found"))?;
-
-                debug!("Found {} positions", positions.len());
-
-                let tex_coords = reader
-                    .read_tex_coords(0)
-                    .map(|iter| iter.into_f32().collect::<Vec<_>>())
-                    .unwrap_or_else(|| {
-                        debug!("No tex coords found, using default");
-                        vec![[0.0, 0.0]; positions.len()]
-                    });
-
-                debug!("Found {} tex coords", tex_coords.len());
-
-                let normals = reader
-                    .read_normals()
-                    .map(|iter| iter.collect::<Vec<_>>())
-                    .ok_or_else(|| anyhow!("No normals found"))?;
-
-                debug!("Found {} normals", normals.len());
-
-                let indices = reader
-                    .read_indices()
-                    .map(|iter| iter.into_u32().collect::<Vec<_>>())
-                    .ok_or_else(|| anyhow!("No indices found"))?;
-
-                debug!("Found {} indices", indices.len());
-
-                let material_index = primitive.material().index().unwrap();
-
-                primitives.push(Primitive {
-                    positions: (positions, None),
-                    tex_coords: (tex_coords, None),
-                    normals: (normals, None),
-                    indices: (indices, None),
-                    material_index,
-                });
-            }
-
-            meshes.push(Mesh {
-                name: mesh.name().map(str::to_owned),
-                primitives,
-            });
-        }
-
-        let mut materials = vec![];
-
-        for material in gltf.materials() {
-            info!("Found material {:?}", material.name());
-            let pbr = material.pbr_metallic_roughness();
-            let base_color_factor = pbr.base_color_factor();
-            let base_color_texture = if let Some(texture_info) = pbr.base_color_texture() {
-                // TODO: figure out what this is used for
-                #[allow(unused_variables)]
-                let tex_coord = texture_info.tex_coord();
-
-                let texture = texture_info.texture();
-
-                // TODO: use this sampler info
-                #[allow(unused_variables)]
-                let sampler = texture.sampler();
-
-                let image = &images[texture.source().index()];
-
-                info!("Base color texture: {:?}", texture.name());
-
-                Texture {
-                    name: texture.name().map(str::to_owned),
-                    // FIXME: this is a hack, we should be able to use the image without cloning
-                    image: Some(image.clone()),
-                    view: None,
-                    sampler: None,
-                }
-            } else {
-                info!("Base color factor: {:?}", base_color_factor);
-                Texture {
-                    name: None,
-                    image: None,
-                    view: None,
-                    sampler: None,
-                }
-            };
-
-            materials.push(Material {
-                name: material.name().map(str::to_owned),
-                base_color_factor: (base_color_factor, None),
-                base_color_texture,
-                bind_group: None,
-            });
-        }
-
-        Ok(Model {
+        Self {
             meshes,
             materials,
-            uniforms: None,
-        })
-    }
-
-    pub fn allocate_buffers(&mut self, device: &wgpu::Device, layout: &wgpu::BindGroupLayout) {
-        self.uniforms = Some(Uniforms::new(ModelBinding::new(), device, layout));
-
-        for mesh in &mut self.meshes {
-            for (index, primitive) in mesh.primitives.iter_mut().enumerate() {
-                let debug_label = format!(
-                    "{:?}#{}",
-                    mesh.name.as_deref().unwrap_or("Unnamed Mesh"),
-                    index
-                );
-
-                primitive.positions.1 = Some(device.create_buffer_init(
-                    &wgpu::util::BufferInitDescriptor {
-                        label: Some(&format!("Position Buffer {}", debug_label)),
-                        contents: bytemuck::cast_slice(&primitive.positions.0),
-                        usage: wgpu::BufferUsages::VERTEX,
-                    },
-                ));
-
-                primitive.tex_coords.1 = Some(device.create_buffer_init(
-                    &wgpu::util::BufferInitDescriptor {
-                        label: Some(&format!("Tex Coord Buffer {}", debug_label)),
-                        contents: bytemuck::cast_slice(&primitive.tex_coords.0),
-                        usage: wgpu::BufferUsages::VERTEX,
-                    },
-                ));
-
-                primitive.normals.1 = Some(device.create_buffer_init(
-                    &wgpu::util::BufferInitDescriptor {
-                        label: Some(&format!("Normal Buffer {}", debug_label)),
-                        contents: bytemuck::cast_slice(&primitive.normals.0),
-                        usage: wgpu::BufferUsages::VERTEX,
-                    },
-                ));
-
-                primitive.indices.1 = Some(device.create_buffer_init(
-                    &wgpu::util::BufferInitDescriptor {
-                        label: Some(&format!("Index Buffer {}", debug_label)),
-                        contents: bytemuck::cast_slice(&primitive.indices.0),
-                        usage: wgpu::BufferUsages::INDEX,
-                    },
-                ));
-            }
-        }
-    }
-
-    pub fn load_materials(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        bind_group_layout: &wgpu::BindGroupLayout,
-    ) {
-        for material in &mut self.materials {
-            material.load(device, queue, bind_group_layout);
+            uniforms,
         }
     }
 
@@ -242,32 +64,89 @@ impl Model {
         for mesh in &self.meshes {
             for primitive in &mesh.primitives {
                 let material = &self.materials[primitive.material_index];
-                render_pass.set_bind_group(
-                    Material::BIND_GROUP_INDEX,
-                    material.bind_group.as_ref().unwrap(),
-                    &[],
-                );
+                render_pass.set_bind_group(Material::BIND_GROUP_INDEX, &material.bind_group, &[]);
 
                 render_pass.set_vertex_buffer(
                     VertexAttribute::Position.location(),
-                    primitive.positions.1.as_ref().unwrap().slice(..),
+                    primitive.positions.slice(..),
                 );
                 render_pass.set_vertex_buffer(
                     VertexAttribute::TexCoord.location(),
-                    primitive.tex_coords.1.as_ref().unwrap().slice(..),
+                    primitive.tex_coords.slice(..),
                 );
                 render_pass.set_vertex_buffer(
                     VertexAttribute::Normal.location(),
-                    primitive.normals.1.as_ref().unwrap().slice(..),
+                    primitive.normals.slice(..),
                 );
 
-                render_pass.set_index_buffer(
-                    primitive.indices.1.as_ref().unwrap().slice(..),
-                    wgpu::IndexFormat::Uint32,
-                );
+                render_pass
+                    .set_index_buffer(primitive.indices.slice(..), wgpu::IndexFormat::Uint32);
 
-                render_pass.draw_indexed(0..primitive.indices.0.len() as u32, 0, 0..1);
+                // TODO: stride?
+                render_pass.draw_indexed(0..(primitive.indices.size() / 4) as u32, 0, 0..1);
             }
+        }
+    }
+}
+
+impl Mesh {
+    pub fn new(mesh: &resources::Mesh, device: &wgpu::Device) -> Mesh {
+        let mut primitives = vec![];
+        for (index, primitive) in mesh.primitives.iter().enumerate() {
+            let debug_label = format!(
+                "{:?}#{}",
+                mesh.name.as_deref().unwrap_or("Unnamed Mesh"),
+                index
+            );
+
+            let primitive = Primitive::new(primitive, &debug_label, device);
+
+            primitives.push(primitive);
+        }
+
+        Mesh {
+            name: mesh.name.clone(),
+            primitives,
+        }
+    }
+}
+
+impl Primitive {
+    pub fn new(
+        primitive: &resources::Primitive,
+        debug_label: &str,
+        device: &wgpu::Device,
+    ) -> Primitive {
+        let positions = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(&format!("Position Buffer {}", debug_label)),
+            contents: bytemuck::cast_slice(&primitive.positions),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        let tex_coords = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(&format!("Tex Coord Buffer {}", debug_label)),
+            contents: bytemuck::cast_slice(&primitive.tex_coords),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        let normals = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(&format!("Normal Buffer {}", debug_label)),
+            contents: bytemuck::cast_slice(&primitive.normals),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        let indices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(&format!("Index Buffer {}", debug_label)),
+            contents: bytemuck::cast_slice(&primitive.indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+
+        Primitive {
+            material_index: primitive.material_index,
+            positions,
+            tex_coords,
+            normals,
+            indices,
         }
     }
 }

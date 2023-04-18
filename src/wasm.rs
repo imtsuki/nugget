@@ -20,7 +20,7 @@ pub fn wasm_start() -> Result<(), JsError> {
 
 #[wasm_bindgen(js_name = loadModel)]
 pub fn load_model(path: Option<String>) -> Result<(), JsError> {
-    send_event(AppEvent::LoadModelRequest {
+    send_event(AppEvent::LoadResourcesRequest {
         path: path.ok_or_else(|| JsError::new("No path provided"))?,
     })
 }

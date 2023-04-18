@@ -26,7 +26,7 @@ pub fn main() -> Result<()> {
 
     event_loop
         .create_proxy()
-        .send_event(app::AppEvent::LoadModelRequest { path: args.path })?;
+        .send_event(app::AppEvent::LoadResourcesRequest { path: args.path })?;
 
     pollster::block_on(nugget::app::run(window, event_loop, args.line)).map_err(|error| {
         tracing::error!(?error);

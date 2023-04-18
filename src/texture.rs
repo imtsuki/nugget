@@ -4,22 +4,14 @@ use crate::resources;
 
 pub struct Texture {
     pub name: Option<String>,
-    pub image: Option<resources::Image>,
-    pub view: Option<wgpu::TextureView>,
-    pub sampler: Option<wgpu::Sampler>,
+    pub view: wgpu::TextureView,
+    pub sampler: wgpu::Sampler,
 }
 
 impl fmt::Debug for Texture {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Texture")
             .field("name", &self.name)
-            .field(
-                "image",
-                &self
-                    .image
-                    .as_ref()
-                    .map(|image| (image.width(), image.height())),
-            )
             .field("view", &self.view)
             .field("sampler", &self.sampler)
             .finish()
@@ -27,19 +19,17 @@ impl fmt::Debug for Texture {
 }
 
 impl Texture {
-    pub fn load(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
-        let size = if let Some(image) = &self.image {
-            wgpu::Extent3d {
-                width: image.width(),
-                height: image.height(),
-                depth_or_array_layers: 1,
-            }
-        } else {
-            wgpu::Extent3d {
-                width: 1,
-                height: 1,
-                depth_or_array_layers: 1,
-            }
+    pub fn new(
+        name: Option<String>,
+        image: &resources::Image,
+        _sampler: &resources::Sampler,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Texture {
+        let size = wgpu::Extent3d {
+            width: image.width(),
+            height: image.height(),
+            depth_or_array_layers: 1,
         };
 
         let texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -69,11 +59,7 @@ impl Texture {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            if let Some(image) = &self.image {
-                image.as_raw()
-            } else {
-                &[0xff, 0xff, 0xff, 0xff]
-            },
+            image.as_raw(),
             wgpu::ImageDataLayout {
                 offset: 0,
                 bytes_per_row: std::num::NonZeroU32::new(4 * size.width),
@@ -83,7 +69,7 @@ impl Texture {
         );
 
         #[cfg(target_arch = "wasm32")]
-        if let Some(image) = &self.image {
+        {
             let image_copy_external_image = wgpu::ImageCopyExternalImage {
                 source: wgpu::ExternalImageSource::ImageBitmap(image.clone()),
                 origin: wgpu::Origin2d::ZERO,
@@ -101,28 +87,67 @@ impl Texture {
                 },
                 size,
             );
-        } else {
-            queue.write_texture(
-                wgpu::ImageCopyTexture {
-                    texture: &texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                    aspect: wgpu::TextureAspect::All,
-                },
-                &[0xff, 0xff, 0xff, 0xff],
-                wgpu::ImageDataLayout {
-                    offset: 0,
-                    bytes_per_row: std::num::NonZeroU32::new(4 * size.width),
-                    rows_per_image: std::num::NonZeroU32::new(size.height),
-                },
-                size,
-            );
         }
 
         let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
 
-        self.view = Some(texture_view);
-        self.sampler = Some(sampler);
+        Texture {
+            name,
+            view: texture_view,
+            sampler,
+        }
+    }
+
+    pub fn white(device: &wgpu::Device, queue: &wgpu::Queue) -> Texture {
+        let size = wgpu::Extent3d {
+            width: 1,
+            height: 1,
+            depth_or_array_layers: 1,
+        };
+
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Texture"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: if cfg!(target_arch = "wasm32") {
+                // Chrome performs color space conversion,
+                wgpu::TextureFormat::Rgba8Unorm
+            } else {
+                // while the image crate does not
+                wgpu::TextureFormat::Rgba8Unorm
+            },
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[wgpu::TextureFormat::Rgba8Unorm],
+        });
+
+        queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &[0xff, 0xff, 0xff, 0xff],
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: std::num::NonZeroU32::new(4 * size.width),
+                rows_per_image: std::num::NonZeroU32::new(size.height),
+            },
+            size,
+        );
+
+        let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
+
+        Texture {
+            name: Some("white".to_string()),
+            view: texture_view,
+            sampler,
+        }
     }
 }

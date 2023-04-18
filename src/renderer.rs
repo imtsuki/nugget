@@ -4,9 +4,11 @@ use tracing::info;
 
 use crate::ext::DeviceExt;
 use crate::material::Material;
-use crate::model::Model;
+use crate::model::{Mesh, Model};
 use crate::scene::Scene;
+use crate::texture::Texture;
 use crate::vertex::VertexIn;
+use crate::Resources;
 
 pub struct BindGroupLayouts {
     pub scene: wgpu::BindGroupLayout,
@@ -213,5 +215,51 @@ impl Renderer {
     pub fn set_model(&mut self, model: Model) {
         self.scene.clear_models();
         self.scene.add_model(model);
+    }
+
+    pub fn load_resources(&mut self, resources: Resources) {
+        let textures: Vec<Texture> = resources
+            .textures
+            .iter()
+            .map(|texture| {
+                Texture::new(
+                    texture.name.clone(),
+                    &resources.images[texture.source_index],
+                    &texture.sampler,
+                    &self.device,
+                    &self.queue,
+                )
+            })
+            .collect();
+
+        let materials: Vec<Material> = resources
+            .materials
+            .iter()
+            .map(|material| {
+                Material::new(
+                    material.name.clone(),
+                    &material.base_color_factor,
+                    material.base_color_texture_index.map(|i| &textures[i]),
+                    &self.device,
+                    &self.queue,
+                    &self.bind_group_layouts.material,
+                )
+            })
+            .collect();
+
+        let meshes: Vec<Mesh> = resources
+            .meshes
+            .iter()
+            .map(|mesh| Mesh::new(&mesh, &self.device))
+            .collect();
+
+        let model = Model::new(
+            meshes,
+            materials,
+            &self.device,
+            &self.bind_group_layouts.model,
+        );
+
+        self.set_model(model);
     }
 }
