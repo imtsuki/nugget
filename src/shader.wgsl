@@ -42,6 +42,10 @@ var<uniform> base_color_factor: vec4<f32>;
 var base_color_texture: texture_2d<f32>;
 @group(2) @binding(2)
 var base_color_sampler: sampler;
+@group(2) @binding(3)
+var normal_texture: texture_2d<f32>;
+@group(2) @binding(4)
+var normal_sampler: sampler;
 
 @fragment
 fn fragment_main(fragment_in: FragmentIn) -> @location(0) vec4<f32> {

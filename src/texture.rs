@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, sync::OnceLock};
 
 use crate::resources;
 
@@ -7,6 +7,9 @@ pub struct Texture {
     pub view: wgpu::TextureView,
     pub sampler: wgpu::Sampler,
 }
+
+static DEFAULT_BASE_COLOR_TEXTURE: OnceLock<Texture> = OnceLock::new();
+static DEFAULT_NORMAL_TEXTURE: OnceLock<Texture> = OnceLock::new();
 
 impl fmt::Debug for Texture {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -82,7 +85,37 @@ impl Texture {
         }
     }
 
-    pub fn white(device: &wgpu::Device, queue: &wgpu::Queue) -> Texture {
+    pub fn default_base_color_texture<'a>(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> &'a Texture {
+        DEFAULT_BASE_COLOR_TEXTURE.get_or_init(|| {
+            Self::create_solid_color_texture(
+                Some("default_base_color".to_string()),
+                [0xff, 0xff, 0xff, 0xff],
+                device,
+                queue,
+            )
+        })
+    }
+
+    pub fn default_normal_texture<'a>(device: &wgpu::Device, queue: &wgpu::Queue) -> &'a Texture {
+        DEFAULT_NORMAL_TEXTURE.get_or_init(|| {
+            Self::create_solid_color_texture(
+                Some("default_normal".to_string()),
+                [0x80, 0x80, 0xff, 0xff],
+                device,
+                queue,
+            )
+        })
+    }
+
+    fn create_solid_color_texture(
+        name: Option<String>,
+        color: [u8; 4],
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Texture {
         let size = wgpu::Extent3d {
             width: 1,
             height: 1,
@@ -98,7 +131,7 @@ impl Texture {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            &[0xff, 0xff, 0xff, 0xff],
+            &color,
             wgpu::ImageDataLayout {
                 offset: 0,
                 bytes_per_row: std::num::NonZeroU32::new(4 * size.width),
@@ -111,7 +144,7 @@ impl Texture {
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
 
         Texture {
-            name: Some("white".to_string()),
+            name,
             view: texture_view,
             sampler,
         }

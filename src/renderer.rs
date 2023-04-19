@@ -242,6 +242,7 @@ impl Renderer {
                     material.name,
                     &material.base_color_factor,
                     material.base_color_texture_index.map(|i| &textures[i]),
+                    material.normal_texture_index.map(|i| &textures[i]),
                     &self.device,
                     &self.queue,
                     &self.bind_group_layouts.material,
