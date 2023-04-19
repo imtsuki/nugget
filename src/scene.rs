@@ -59,7 +59,6 @@ impl Scene {
         );
 
         for model in &self.models {
-            render_pass.set_bind_group(Model::BIND_GROUP_INDEX, &model.uniforms.bind_group, &[]);
             model.render(render_pass);
         }
     }

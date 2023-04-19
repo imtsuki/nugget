@@ -1,10 +1,14 @@
 #![feature(local_key_cell_methods)]
 
-pub mod camera;
-pub mod material;
-pub mod model;
 pub mod renderer;
+
 pub mod resources;
+
+pub mod camera;
+pub mod entity;
+pub mod material;
+pub mod mesh;
+pub mod model;
 pub mod scene;
 pub mod texture;
 pub mod uniform;

@@ -1,3 +1,5 @@
+use std::mem;
+
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
 
@@ -41,6 +43,60 @@ impl<T: bytemuck::NoUninit> Uniforms<T> {
     }
 }
 
+#[derive(Debug)]
+
+pub struct UniformsArray<T: bytemuck::NoUninit> {
+    pub buffer: wgpu::Buffer,
+    pub bind_group: wgpu::BindGroup,
+    alignment: wgpu::BufferAddress,
+    _marker: std::marker::PhantomData<T>,
+}
+
+impl<T: bytemuck::NoUninit> UniformsArray<T> {
+    pub fn new(len: usize, device: &wgpu::Device, layout: &wgpu::BindGroupLayout) -> Self {
+        let element_size = mem::size_of::<T>() as wgpu::BufferAddress;
+        let alignment = wgpu::util::align_to(
+            element_size,
+            device.limits().min_uniform_buffer_offset_alignment as u64,
+        );
+
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("UniformsArrayBuffer"),
+            size: alignment * len as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("UniformsArrayBindGroup"),
+            layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer: &buffer,
+                    offset: 0,
+                    size: wgpu::BufferSize::new(element_size),
+                }),
+            }],
+        });
+
+        Self {
+            buffer,
+            bind_group,
+            alignment,
+            _marker: std::marker::PhantomData,
+        }
+    }
+
+    pub fn update(&self, data: T, index: usize, queue: &wgpu::Queue) {
+        let offset = index as u64 * self.alignment;
+        queue.write_buffer(&self.buffer, offset, bytemuck::bytes_of(&data));
+    }
+
+    pub fn offset(&self, index: usize) -> wgpu::BufferAddress {
+        index as u64 * self.alignment
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct CameraBinding {
@@ -70,7 +126,15 @@ impl ModelBinding {
     }
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct EntityBinding {
+    pub transform: glam::Mat4,
+}
+
 unsafe impl Pod for CameraBinding {}
 unsafe impl Zeroable for CameraBinding {}
 unsafe impl Pod for ModelBinding {}
 unsafe impl Zeroable for ModelBinding {}
+unsafe impl Pod for EntityBinding {}
+unsafe impl Zeroable for EntityBinding {}

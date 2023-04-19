@@ -2,9 +2,11 @@ use anyhow::{anyhow, Result};
 
 use tracing::info;
 
+use crate::entity::Entity;
 use crate::ext::DeviceExt;
 use crate::material::Material;
-use crate::model::{Mesh, Model};
+use crate::mesh::Mesh;
+use crate::model::Model;
 use crate::scene::Scene;
 use crate::texture::Texture;
 use crate::vertex::VertexIn;
@@ -220,7 +222,7 @@ impl Renderer {
     pub fn load_resources(&mut self, resources: Resources) {
         let textures: Vec<Texture> = resources
             .textures
-            .iter()
+            .into_iter()
             .map(|texture| {
                 Texture::new(
                     texture.name.clone(),
@@ -234,10 +236,10 @@ impl Renderer {
 
         let materials: Vec<Material> = resources
             .materials
-            .iter()
+            .into_iter()
             .map(|material| {
                 Material::new(
-                    material.name.clone(),
+                    material.name,
                     &material.base_color_factor,
                     material.base_color_texture_index.map(|i| &textures[i]),
                     &self.device,
@@ -249,14 +251,34 @@ impl Renderer {
 
         let meshes: Vec<Mesh> = resources
             .meshes
-            .iter()
+            .into_iter()
             .map(|mesh| Mesh::new(&mesh, &self.device))
             .collect();
+
+        let entities: Vec<Entity> = resources
+            .nodes
+            .into_iter()
+            .map(|node| node.into())
+            .collect();
+
+        let root_entity_indices = resources.scenes[resources.default_scene_index]
+            .nodes
+            .clone();
+
+        let root_entity = Entity {
+            name: Some("Root".to_string()),
+            transform: glam::Mat4::from_diagonal(glam::Vec4::new(-1.0, 1.0, 1.0, 1.0)),
+            mesh_index: None,
+            children: root_entity_indices,
+        };
 
         let model = Model::new(
             meshes,
             materials,
+            entities,
+            root_entity,
             &self.device,
+            &self.queue,
             &self.bind_group_layouts.model,
         );
 

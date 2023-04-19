@@ -179,6 +179,8 @@ impl Resources {
 
             let transform = node.transform().matrix();
 
+            let transform = glam::Mat4::from_cols_array_2d(&transform);
+
             nodes.push(Node {
                 name,
                 children,
