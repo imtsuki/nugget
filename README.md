@@ -4,6 +4,10 @@
 
 A WebGPU renderer written in Rust, using the `wgpu` crate. It is capable of loading glTF files and can run both natively and in the browser via WebAssembly.
 
+![Screenshot](screenshot.png)
+
+_Credit: [GAMEBOY by grimmorf](https://sketchfab.com/3d-models/gameboy-4a1da0cefa904c4eae895338bd6f3334)_
+
 ## Getting Started
 
 To run natively, run the following command:
