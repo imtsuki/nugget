@@ -12,6 +12,7 @@ pub struct Primitive {
     pub positions: wgpu::Buffer,
     pub tex_coords: wgpu::Buffer,
     pub normals: wgpu::Buffer,
+    pub tangents: wgpu::Buffer,
     pub indices: wgpu::Buffer,
     pub material_index: usize,
 }
@@ -62,6 +63,12 @@ impl Primitive {
             usage: wgpu::BufferUsages::VERTEX,
         });
 
+        let tangents = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(&format!("Tangent Buffer {}", debug_label)),
+            contents: bytemuck::cast_slice(&primitive.tangents),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
         let indices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(&format!("Index Buffer {}", debug_label)),
             contents: bytemuck::cast_slice(&primitive.indices),
@@ -73,6 +80,7 @@ impl Primitive {
             positions,
             tex_coords,
             normals,
+            tangents,
             indices,
         }
     }

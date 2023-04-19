@@ -2,6 +2,7 @@ pub enum VertexAttribute {
     Position,
     TexCoord,
     Normal,
+    Tangent,
 }
 
 impl VertexAttribute {
@@ -11,6 +12,7 @@ impl VertexAttribute {
             VertexAttribute::Position => Float32x3,
             VertexAttribute::TexCoord => Float32x2,
             VertexAttribute::Normal => Float32x3,
+            VertexAttribute::Tangent => Float32x4,
         }
     }
 
@@ -24,6 +26,7 @@ impl VertexAttribute {
             VertexAttribute::Position => 0,
             VertexAttribute::TexCoord => 1,
             VertexAttribute::Normal => 2,
+            VertexAttribute::Tangent => 3,
         }
     }
 }
@@ -31,17 +34,19 @@ impl VertexAttribute {
 type Position = [f32; 3];
 type TexCoord = [f32; 2];
 type Normal = [f32; 3];
+type Tangent = [f32; 4];
 
 #[repr(C)]
 pub struct VertexIn {
     position: Position,
     tex_coord: TexCoord,
     normal: Normal,
+    tangent: Tangent,
 }
 
 impl VertexIn {
     /// Use separate buffers for each attribute for now
-    pub const BUFFER_LAYOUTS: [wgpu::VertexBufferLayout<'static>; 3] = [
+    pub const BUFFER_LAYOUTS: [wgpu::VertexBufferLayout<'static>; 4] = [
         wgpu::VertexBufferLayout {
             array_stride: VertexAttribute::Position.size(),
             step_mode: wgpu::VertexStepMode::Vertex,
@@ -56,6 +61,11 @@ impl VertexIn {
             array_stride: VertexAttribute::Normal.size(),
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &wgpu::vertex_attr_array![VertexAttribute::Normal.location() => Float32x3],
+        },
+        wgpu::VertexBufferLayout {
+            array_stride: VertexAttribute::Tangent.size(),
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &wgpu::vertex_attr_array![VertexAttribute::Tangent.location() => Float32x4],
         },
     ];
 }

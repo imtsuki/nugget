@@ -2,6 +2,7 @@ pub struct Primitive {
     pub positions: Vec<[f32; 3]>,
     pub tex_coords: Vec<[f32; 2]>,
     pub normals: Vec<[f32; 3]>,
+    pub tangents: Vec<[f32; 4]>,
     pub indices: Vec<u32>,
     pub material_index: usize,
 }

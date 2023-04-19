@@ -111,6 +111,10 @@ impl Model {
                         VertexAttribute::Normal.location(),
                         primitive.normals.slice(..),
                     );
+                    render_pass.set_vertex_buffer(
+                        VertexAttribute::Tangent.location(),
+                        primitive.tangents.slice(..),
+                    );
 
                     render_pass
                         .set_index_buffer(primitive.indices.slice(..), wgpu::IndexFormat::Uint32);

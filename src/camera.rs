@@ -20,7 +20,7 @@ impl ArcCamera {
         device: &wgpu::Device,
         layout: &wgpu::BindGroupLayout,
     ) -> Self {
-        let eye = glam::Vec3::new(0.0, 0.0, 0.5);
+        let eye = glam::Vec3::new(0.0, 0.0, 0.25);
         let target = glam::Vec3::new(0.0, 0.05, 0.0);
         let up = glam::Vec3::new(0.0, 1.0, 0.0);
 

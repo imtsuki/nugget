@@ -143,6 +143,11 @@ impl Resources {
 
                 debug!("Found {} normals", normals.len());
 
+                let tangents = reader
+                    .read_tangents()
+                    .map(|iter| iter.collect::<Vec<_>>())
+                    .ok_or_else(|| anyhow!("No tangents found"))?;
+
                 let indices = reader
                     .read_indices()
                     .map(|iter| iter.into_u32().collect::<Vec<_>>())
@@ -156,6 +161,7 @@ impl Resources {
                     positions,
                     tex_coords,
                     normals,
+                    tangents,
                     indices,
                     material_index,
                 });
