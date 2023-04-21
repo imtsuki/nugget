@@ -4,7 +4,7 @@ use crate::resources;
 
 pub struct Texture {
     pub name: Option<String>,
-    pub view: wgpu::TextureView,
+    pub texture: wgpu::Texture,
     pub sampler: wgpu::Sampler,
 }
 
@@ -15,7 +15,6 @@ impl fmt::Debug for Texture {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Texture")
             .field("name", &self.name)
-            .field("view", &self.view)
             .field("sampler", &self.sampler)
             .finish()
     }
@@ -34,6 +33,8 @@ impl Texture {
             height: image.height(),
             depth_or_array_layers: 1,
         };
+
+        tracing::debug!("width: {}, height: {}", size.width, size.height);
 
         let texture = Self::create_device_texture(size, device);
 
@@ -75,12 +76,11 @@ impl Texture {
             );
         }
 
-        let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
 
         Texture {
             name,
-            view: texture_view,
+            texture,
             sampler,
         }
     }
@@ -140,12 +140,11 @@ impl Texture {
             size,
         );
 
-        let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
 
         Texture {
             name,
-            view: texture_view,
+            texture,
             sampler,
         }
     }
@@ -157,17 +156,21 @@ impl Texture {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: if cfg!(target_arch = "wasm32") {
-                // Chrome performs color space conversion,
-                wgpu::TextureFormat::Rgba8Unorm
-            } else {
-                // while the image crate does not
-                wgpu::TextureFormat::Rgba8Unorm
-            },
+            format: wgpu::TextureFormat::Rgba8Unorm,
             usage: wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[wgpu::TextureFormat::Rgba8Unorm],
+            view_formats: &[
+                wgpu::TextureFormat::Rgba8Unorm,
+                wgpu::TextureFormat::Rgba8UnormSrgb,
+            ],
+        })
+    }
+
+    pub fn create_view(&self, format: wgpu::TextureFormat) -> wgpu::TextureView {
+        self.texture.create_view(&wgpu::TextureViewDescriptor {
+            format: Some(format),
+            ..Default::default()
         })
     }
 }

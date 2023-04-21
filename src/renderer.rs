@@ -55,9 +55,22 @@ impl Renderer {
 
         info!("Supported features: {:?}", adapter.features());
 
-        let config = surface
+        let mut config = surface
             .get_default_config(&adapter, width, height)
             .ok_or_else(|| anyhow!("Failed to get default surface configuration"))?;
+
+        // `-srgb` is the preferred swapchain format, and it is selected by default on
+        // native platforms. However, on the web, only `bgra8unorm` is supported.
+        // Instead, we should specify the `-srgb` format in the `view_formats` list,
+        // and use create_view to create a view with an srgb format.
+        //
+        // Works in Chrome, but not Firefox.
+        //
+        // See https://www.w3.org/TR/webgpu/#canvas-configuration
+        config.view_formats = vec![
+            wgpu::TextureFormat::Bgra8Unorm,
+            wgpu::TextureFormat::Bgra8UnormSrgb,
+        ];
 
         // A device is the logical instantiation of an adapter.
         let device_descriptor = wgpu::DeviceDescriptor {
@@ -109,7 +122,8 @@ impl Renderer {
                 module: &shader,
                 entry_point: "fragment_main",
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: config.format,
+                    // Use the srgb format for the swapchain.
+                    format: wgpu::TextureFormat::Bgra8UnormSrgb,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
@@ -178,9 +192,12 @@ impl Renderer {
             .surface
             .get_current_texture()
             .expect("Failed to acquire next swap chain texture");
-        let view = frame
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
+        // Create a `-srgb` view of the swapchain texture.
+        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor {
+            format: Some(wgpu::TextureFormat::Bgra8UnormSrgb),
+            ..Default::default()
+        });
+
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });

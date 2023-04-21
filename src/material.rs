@@ -99,7 +99,9 @@ impl Material {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&base_color_texture.view),
+                    resource: wgpu::BindingResource::TextureView(
+                        &base_color_texture.create_view(wgpu::TextureFormat::Rgba8UnormSrgb),
+                    ),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
@@ -107,7 +109,9 @@ impl Material {
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
-                    resource: wgpu::BindingResource::TextureView(&normal_texture.view),
+                    resource: wgpu::BindingResource::TextureView(
+                        &normal_texture.create_view(wgpu::TextureFormat::Rgba8Unorm),
+                    ),
                 },
                 wgpu::BindGroupEntry {
                     binding: 4,
