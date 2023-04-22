@@ -10,6 +10,7 @@ pub struct Texture {
 
 static DEFAULT_BASE_COLOR_TEXTURE: OnceLock<Texture> = OnceLock::new();
 static DEFAULT_NORMAL_TEXTURE: OnceLock<Texture> = OnceLock::new();
+static DEFAULT_METALLIC_ROUGHNESS_TEXTURE: OnceLock<Texture> = OnceLock::new();
 
 impl fmt::Debug for Texture {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -104,6 +105,20 @@ impl Texture {
             Self::create_solid_color_texture(
                 Some("default_normal".to_string()),
                 [0x80, 0x80, 0xff, 0xff],
+                device,
+                queue,
+            )
+        })
+    }
+
+    pub fn default_metallic_roughness_texture<'a>(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> &'a Texture {
+        DEFAULT_METALLIC_ROUGHNESS_TEXTURE.get_or_init(|| {
+            Self::create_solid_color_texture(
+                Some("default_metallic_roughness".to_string()),
+                [0xff, 0xff, 0xff, 0xff],
                 device,
                 queue,
             )

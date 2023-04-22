@@ -86,9 +86,15 @@ impl Resources {
             let name = material.name().map(str::to_owned);
             let pbr = material.pbr_metallic_roughness();
             let base_color_factor = pbr.base_color_factor();
+            let metallic_factor = pbr.metallic_factor();
+            let roughness_factor = pbr.roughness_factor();
 
             let base_color_texture_index = pbr
                 .base_color_texture()
+                .map(|texture_info| texture_info.texture().index());
+
+            let metallic_roughness_texture_index = pbr
+                .metallic_roughness_texture()
                 .map(|texture_info| texture_info.texture().index());
 
             let normal_texture_index = material
@@ -100,6 +106,9 @@ impl Resources {
                 base_color_factor,
                 base_color_texture_index,
                 normal_texture_index,
+                metallic_factor,
+                roughness_factor,
+                metallic_roughness_texture_index,
             };
 
             materials.push(material);

@@ -132,9 +132,19 @@ pub struct EntityBinding {
     pub transform: glam::Mat4,
 }
 
+#[repr(C, align(16))]
+#[derive(Clone, Copy, Debug)]
+pub struct MaterialFactorsBinding {
+    pub base_color_factor: [f32; 4],
+    pub metallic_factor: f32,
+    pub roughness_factor: f32,
+}
+
 unsafe impl Pod for CameraBinding {}
 unsafe impl Zeroable for CameraBinding {}
 unsafe impl Pod for ModelBinding {}
 unsafe impl Zeroable for ModelBinding {}
 unsafe impl Pod for EntityBinding {}
 unsafe impl Zeroable for EntityBinding {}
+unsafe impl Pod for MaterialFactorsBinding {}
+unsafe impl Zeroable for MaterialFactorsBinding {}

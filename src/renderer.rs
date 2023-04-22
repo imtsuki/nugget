@@ -260,10 +260,8 @@ impl Renderer {
             .into_iter()
             .map(|material| {
                 Material::new(
-                    material.name,
-                    &material.base_color_factor,
-                    material.base_color_texture_index.map(|i| &textures[i]),
-                    material.normal_texture_index.map(|i| &textures[i]),
+                    material,
+                    &textures,
                     &self.device,
                     &self.queue,
                     &self.bind_group_layouts.material,
