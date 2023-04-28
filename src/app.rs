@@ -63,6 +63,14 @@ pub async fn run(
                 renderer.rotate_camera(x, y);
                 window.request_redraw();
             }
+            Event::WindowEvent {
+                event: WindowEvent::TouchpadMagnify { delta, .. },
+                ..
+            } => {
+                tracing::debug!(?delta);
+                renderer.zoom_camera(delta as f32);
+                window.request_redraw();
+            }
             Event::UserEvent(event) => {
                 tracing::info!(?event, "received user event");
                 match event {

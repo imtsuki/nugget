@@ -97,4 +97,12 @@ impl ArcCamera {
 
         self.uniforms.update(self.uniforms_data(), queue);
     }
+
+    pub fn zoom(&mut self, delta: f32, queue: &wgpu::Queue) {
+        let eye = self.eye - self.target;
+        let eye = eye.normalize() * eye.length() * (1.0 - delta);
+        self.eye = eye + self.target;
+
+        self.uniforms.update(self.uniforms_data(), queue);
+    }
 }

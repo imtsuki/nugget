@@ -51,6 +51,10 @@ impl Scene {
         self.camera.rotate(delta, queue);
     }
 
+    pub fn zoom_camera(&mut self, delta: f32, queue: &wgpu::Queue) {
+        self.camera.zoom(delta, queue);
+    }
+
     pub fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
         render_pass.set_bind_group(
             Scene::BIND_GROUP_INDEX,
