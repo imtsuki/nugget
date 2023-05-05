@@ -186,6 +186,10 @@ impl Renderer {
         self.scene.rotate_camera(glam::Vec2::new(x, y), &self.queue);
     }
 
+    pub fn zoom_camera(&mut self, delta: f32) {
+        self.scene.zoom_camera(delta, &self.queue);
+    }
+
     pub fn render(&self) {
         tracing::debug!("Rendering new frame");
         let frame = self

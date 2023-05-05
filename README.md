@@ -30,7 +30,7 @@ This will generate a `pkg` directory containing the compiled WebAssembly module.
 python -m http.server 8000
 ```
 
-Please note that currently, Chromium browsers are the only supported browser for WebGPU (Firefox's WebIDL is out of date, see [Bug 1785576](https://bugzilla.mozilla.org/show_bug.cgi?id=1785576)). Also, the origin trial token included in `index.html` that enables WebGPU is for `localhost:8000` only. If you wish to run on a different port, you need to manually enable the corresponding features in `chrome://flags`, or generate your own token.
+Chromium-based browsers with version 113 or later are supported.
 
 ## License
 
